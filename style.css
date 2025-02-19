@@ -1,0 +1,19 @@
+body {
+    font-family: 'Montserrat', sans-serif;
+}
+
+h2, h3 {
+    font-family: 'Lexend', sans-serif;
+}
+
+header {
+    box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.1);
+}
+
+table {
+    text-align: center;
+}
+
+button {
+    font-weight: bold;
+}
