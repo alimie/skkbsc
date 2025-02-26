@@ -1,109 +1,135 @@
-document.addEventListener("DOMContentLoaded", function () {
-    const usageForm = document.getElementById("usageForm");
-    const usageTableBody = document.getElementById("usageTableBody");
-    const downloadPDF = document.getElementById("download-usage-pdf");
+const USAGE_API_URL = "https://app.nocodb.com/api/v2/tables/mwhjxp9f2hp8ld1/records";  
+const BOOKINGS_API_URL = "https://app.nocodb.com/api/v2/tables/mwhjxp9f2hp8ld1/records";
+const NOCO_API_KEY = "_95xdb1wWv0CiD4ZNmRft3ogUwSorjxsK8S46-FA";
 
-    let usageRecords = JSON.parse(localStorage.getItem("usageRecords")) || [];
-    let bookings = JSON.parse(localStorage.getItem("bookings")) || [];
+// Load previous bookings
+async function loadBookings() {
+    let response = await fetch(BOOKINGS_API_URL, {
+        headers: { "xc-auth": NOCO_API_KEY }
+    });
+    let data = await response.json();
+    
+    let bookingSelect = document.getElementById("bookingSelect");
+    bookingSelect.innerHTML = '<option value="">Select a Booking</option>';
 
-    function populateClassOptions() {
-        const classSelect = document.getElementById("usageClass");
-        classSelect.innerHTML = "";
-        bookings.forEach(booking => {
-            let option = document.createElement("option");
-            option.value = booking.class;
-            option.textContent = `${booking.class} (${booking.date})`;
-            classSelect.appendChild(option);
-        });
+    data.list.forEach(record => {
+        let option = document.createElement("option");
+        option.value = record.id;
+        option.textContent = `${record.fields.Date} - ${record.fields.Class} (${record.fields.Teacher})`;
+        bookingSelect.appendChild(option);
+    });
+}
+
+// Save a new usage record
+async function saveUsage(event) {
+    event.preventDefault();
+    let bookingId = document.getElementById("bookingSelect").value;
+    let usageDetails = document.getElementById("usageDetails").value;
+
+    if (!bookingId) {
+        alert("Please select a booking.");
+        return;
     }
 
-    function updateTable() {
-        usageTableBody.innerHTML = "";
-        usageRecords.forEach((record, index) => {
-            let row = `<tr>
-                <td>${record.date}</td>
-                <td>${record.class}</td>
-                <td>${record.teacher}</td>
-                <td>${record.experimentDetails}</td>
-                <td><button class="btn btn-danger btn-sm delete-btn" data-index="${index}">Delete</button></td>
-            </tr>`;
-            usageTableBody.innerHTML += row;
-        });
+    let response = await fetch(USAGE_API_URL, {
+        method: "POST",
+        headers: {
+            "xc-auth": NOCO_API_KEY,
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+            fields: { BookingID: bookingId, UsageDetails: usageDetails }
+        })
+    });
 
-        document.querySelectorAll(".delete-btn").forEach(button => {
-            button.addEventListener("click", function () {
-                let index = this.getAttribute("data-index");
-                usageRecords.splice(index, 1);
-                localStorage.setItem("usageRecords", JSON.stringify(usageRecords));
-                updateTable();
-            });
-        });
+    if (response.ok) {
+        loadUsages();
+    } else {
+        console.error("Error saving usage record");
     }
+}
 
-    usageForm.addEventListener("submit", function (e) {
-        e.preventDefault();
+// Load recorded usages
+async function loadUsages() {
+    let response = await fetch(USAGE_API_URL, {
+        headers: { "xc-auth": NOCO_API_KEY }
+    });
+    let data = await response.json();
+    
+    let tableBody = document.getElementById("usageTableBody");
+    tableBody.innerHTML = "";
 
-        let date = document.getElementById("usageDate").value;
-        let className = document.getElementById("usageClass").value;
-        let teacher = document.getElementById("usageTeacher").value;
-        let experimentDetails = document.getElementById("experimentDetails").value;
+    data.list.forEach(record => {
+        let row = `<tr>
+            <td>${record.fields.Date}</td>
+            <td>${record.fields.Class}</td>
+            <td>${record.fields.Teacher}</td>
+            <td>${record.fields.UsageDetails}</td>
+            <td><button class="btn btn-danger btn-sm" onclick="deleteUsage('${record.id}')">Delete</button></td>
+        </tr>`;
+        tableBody.innerHTML += row;
+    });
+}
 
-        if (!date || !className || !teacher || !experimentDetails) {
-            alert("Please fill in all fields.");
-            return;
-        }
-
-        let newRecord = { date, class: className, teacher, experimentDetails };
-        usageRecords.push(newRecord);
-        localStorage.setItem("usageRecords", JSON.stringify(usageRecords));
-
-        updateTable();
-        usageForm.reset();
+// Delete usage
+async function deleteUsage(id) {
+    let response = await fetch(`${USAGE_API_URL}/${id}`, {
+        method: "DELETE",
+        headers: { "xc-auth": NOCO_API_KEY }
     });
 
-    downloadPDF.addEventListener("click", function () {
-        if (usageRecords.length === 0) {
-            alert("No records to download!");
-            return;
-        }
+    if (response.ok) {
+        loadUsages();
+    } else {
+        console.error("Error deleting usage record");
+    }
+}
 
-        const { jsPDF } = window.jspdf;
-        const doc = new jsPDF();
-
-        // Load the logo as Base64
-        const logoUrl = "logo.png";
-
-        let img = new Image();
-        img.crossOrigin = "Anonymous";
-        img.src = logoUrl;
-        img.onload = function () {
-            // Add Logo
-            doc.addImage(img, "PNG", 15, 10, 20, 20);
-
-            // Add Title
-            doc.setFont("helvetica", "bold");
-            doc.text("Science Lab Usage Record", 70, 20);
-
-            // Add Table
-            doc.autoTable({
-                startY: 40,
-                head: [["Date", "Class", "Teacher", "Experiment"]],
-                body: usageRecords.map(record => [record.date, record.class, record.teacher, record.experimentDetails]),
-                styles: { font: "helvetica", fontSize: 10, cellPadding: 2 },
-                headStyles: { fillColor: [41, 128, 185], textColor: 255, fontSize: 12 },
-                alternateRowStyles: { fillColor: [240, 240, 240] },
-                theme: "grid"
-            });
-
-            // Save PDF
-            doc.save("Science_Lab_Usage_Record.pdf");
-        };
-
-        img.onerror = function () {
-            alert("Failed to load logo. Please check the URL.");
-        };
+// Export Usage CSV
+function exportUsageCSV() {
+    let rows = [["Date", "Class", "Teacher", "Usage Details"]];
+    document.querySelectorAll("#usageTableBody tr").forEach(row => {
+        let cols = row.querySelectorAll("td");
+        rows.push([...cols].slice(0, 4).map(col => col.innerText));
     });
 
-    populateClassOptions();
-    updateTable();
-});
+    let csvContent = "data:text/csv;charset=utf-8," + rows.map(e => e.join(",")).join("\n");
+    let encodedUri = encodeURI(csvContent);
+    let link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", "Lab_Usage_Records.csv");
+    document.body.appendChild(link);
+    link.click();
+}
+
+// Export Usage PDF
+function exportUsagePDF() {
+    let { jsPDF } = window.jspdf;
+    let doc = new jsPDF();
+
+    let img = new Image();
+    img.src = "logo.png";
+    doc.addImage(img, "PNG", 10, 10, 30, 30);
+
+    doc.setFontSize(18);
+    doc.text("Science Lab Usage Record", 60, 20);
+
+    let rows = [];
+    document.querySelectorAll("#usageTableBody tr").forEach(row => {
+        let cols = row.querySelectorAll("td");
+        rows.push([...cols].slice(0, 4).map(col => col.innerText));
+    });
+
+    doc.autoTable({
+        head: [["Date", "Class", "Teacher", "Usage Details"]],
+        body: rows,
+        startY: 50
+    });
+
+    doc.save("Lab_Usage_Records.pdf");
+}
+
+// Initialize
+document.getElementById("usageForm").addEventListener("submit", saveUsage);
+loadBookings();
+loadUsages();
