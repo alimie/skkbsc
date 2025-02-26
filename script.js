@@ -1,23 +1,28 @@
-const NOCO_API_URL = "https://app.nocodb.com/api/v2/tables/mwhjxp9f2hp8ld1/records";  // Example: "https://nocodb.example.com/api/v1/tables/LabBookings/records"
-const NOCO_API_KEY = "_95xdb1wWv0CiD4ZNmRft3ogUwSorjxsK8S46-FA";  // Get from API Docs
+const NOCO_API_URL = "https://app.nocodb.com/api/v2/tables/mwhjxp9f2hp8ld1/records";  
+const NOCO_API_KEY = "_95xdb1wWv0CiD4ZNmRft3ogUwSorjxsK8S46-FA";
 
-// Fetch existing bookings
+// Fetch bookings from NocoDB
 async function loadBookings() {
     let response = await fetch(NOCO_API_URL, {
-        headers: {
-            "xc-auth": NOCO_API_KEY
-        }
+        headers: { "xc-auth": NOCO_API_KEY }
     });
     let data = await response.json();
     let bookings = data.list.map(record => ({
-        id: record.id,  // Store ID for deletion
+        id: record.id,  
         ...record.fields
     }));
     updateTable(bookings);
 }
 
-// Save new booking
-async function saveBooking(date, className, teacher, startTime, endTime) {
+// Save a new booking
+async function saveBooking(event) {
+    event.preventDefault();
+    let date = document.getElementById("date").value;
+    let className = document.getElementById("class").value;
+    let teacher = document.getElementById("teacher").value;
+    let startTime = document.getElementById("startTime").value;
+    let endTime = document.getElementById("endTime").value;
+
     let response = await fetch(NOCO_API_URL, {
         method: "POST",
         headers: {
@@ -25,40 +30,32 @@ async function saveBooking(date, className, teacher, startTime, endTime) {
             "Content-Type": "application/json"
         },
         body: JSON.stringify({
-            fields: {
-                "Date": date,
-                "Class": className,
-                "Teacher": teacher,
-                "Start Time": startTime,
-                "End Time": endTime
-            }
+            fields: { Date: date, Class: className, Teacher: teacher, StartTime: startTime, EndTime: endTime }
         })
     });
 
     if (response.ok) {
-        loadBookings(); // Refresh list after saving
+        loadBookings();
     } else {
         console.error("Error saving booking");
     }
 }
 
-// Delete booking by ID
+// Delete booking
 async function deleteBooking(id) {
     let response = await fetch(`${NOCO_API_URL}/${id}`, {
         method: "DELETE",
-        headers: {
-            "xc-auth": NOCO_API_KEY
-        }
+        headers: { "xc-auth": NOCO_API_KEY }
     });
 
     if (response.ok) {
-        loadBookings(); // Refresh list after deletion
+        loadBookings();
     } else {
         console.error("Error deleting booking");
     }
 }
 
-// Update table with booking data
+// Update table
 function updateTable(bookings) {
     let tableBody = document.getElementById("bookingTableBody");
     tableBody.innerHTML = "";
@@ -68,9 +65,9 @@ function updateTable(bookings) {
             <td>${booking.Date}</td>
             <td>${booking.Class}</td>
             <td>${booking.Teacher}</td>
-            <td>${booking["Start Time"]}</td>
-            <td>${booking["End Time"]}</td>
-            <td><button onclick="deleteBooking('${booking.id}')">Delete</button></td>
+            <td>${booking.StartTime}</td>
+            <td>${booking.EndTime}</td>
+            <td><button class="btn btn-danger btn-sm" onclick="deleteBooking('${booking.id}')">Delete</button></td>
         </tr>`;
         tableBody.innerHTML += row;
     });
@@ -79,9 +76,7 @@ function updateTable(bookings) {
 // Export CSV
 function exportCSV() {
     let rows = [["Date", "Class", "Teacher", "Start Time", "End Time"]];
-    let tableRows = document.querySelectorAll("#bookingTableBody tr");
-
-    tableRows.forEach(row => {
+    document.querySelectorAll("#bookingTableBody tr").forEach(row => {
         let cols = row.querySelectorAll("td");
         rows.push([...cols].slice(0, 5).map(col => col.innerText));
     });
@@ -95,15 +90,15 @@ function exportCSV() {
     link.click();
 }
 
-// Export PDF with table and logo
+// Export PDF
 function exportPDF() {
     let { jsPDF } = window.jspdf;
     let doc = new jsPDF();
-    
+
     let img = new Image();
-    img.src = "logo.png"; // Add your logo here
+    img.src = "logo.png"; // Add your logo file here
     doc.addImage(img, "PNG", 10, 10, 30, 30);
-    
+
     doc.setFontSize(18);
     doc.text("Science Lab Usage Record", 60, 20);
 
@@ -122,5 +117,6 @@ function exportPDF() {
     doc.save("Lab_Bookings.pdf");
 }
 
-// Load data on page start
+// Initialize
+document.getElementById("bookingForm").addEventListener("submit", saveBooking);
 loadBookings();
